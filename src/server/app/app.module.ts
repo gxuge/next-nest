@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ThingsModule } from './things/things.module';
 import { OrdersModule } from './orders/orders.module';
+import { ImageFilterModule } from './image-filter/image-filter.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { OrdersModule } from './orders/orders.module';
     UsersModule,
     ThingsModule,
     OrdersModule,
+    ImageFilterModule,
   ],
   providers: [SeedService, AppService],
   controllers: [AppController],
