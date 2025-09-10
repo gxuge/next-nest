@@ -8,6 +8,7 @@ services:
     image: gxuge/next-nest:latest
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
       - DATABASE_USER=${POSTGRES_USER}
@@ -17,7 +18,7 @@ services:
     depends_on:
       - db
     ports:
-      - "3000:3000"
+      - "4000:3000"
     command: ["yarn", "start:prod"]
 
   db:

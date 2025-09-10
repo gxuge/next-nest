@@ -6,8 +6,13 @@ dotenv.config();
 const source = new DataSource({
   type: 'postgres' as const,
   url: process.env.DATABASE_URL,
-  entities: ['src/server/app/**/*.entity.ts'],
-  migrations: ['src/server/migration/*.{ts,js}'],
+  migrationsRun: false,
+  logging: true,
+  logger: 'file',
+  ssl: false,
+
+  entities: ['dist/src/server/app/**/*.entity{.ts,.js}'],
+  migrations: ['dist/src/server/migration/*{.ts,.js}'],
   extra: {
     ssl:
       process.env.NODE_ENV === 'production'
