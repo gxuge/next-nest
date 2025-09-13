@@ -1,4 +1,10 @@
-import { IsString, IsArray, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FilterImagesDto {
@@ -45,15 +51,15 @@ export class ImageStats {
     description: '移除原因统计',
     example: { blacklist: 2, gif: 1, size: 3, error: 1 }
   })
-  reasons: Record<string, number>;
+  reasons: { [key: string]: number };
 }
 
-class RemovedImageInfo {
-  @ApiProperty({ description: '被移除图片的URL' })
+export class KeptImage {
+  @ApiProperty({ description: '保留图片的源地址' })
   src: string;
 
-  @ApiProperty({ description: '移除原因 (blacklist, gif, size, error)' })
-  reason: string;
+  @ApiProperty({ description: '保留图片的完整img标签' })
+  tag: string;
 }
 
 export class FilterImagesResponseDto {
@@ -63,9 +69,9 @@ export class FilterImagesResponseDto {
   @ApiProperty({ description: '统计信息' })
   stats: ImageStats;
 
-  @ApiPropertyOptional({
-    description: '被移除的图片列表及其原因',
-    type: [RemovedImageInfo],
-  })
-  removedImages?: RemovedImageInfo[];
+  @ApiProperty({ description: '移除的图片列表' })
+  removedImages: { src: string; reason: string }[];
+
+  @ApiProperty({ description: '保留的图片列表', type: [KeptImage] })
+  keptImages: KeptImage[];
 }

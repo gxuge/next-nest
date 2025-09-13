@@ -3,6 +3,7 @@ import {
   FilterImagesDto,
   FilterImagesResponseDto,
   ImageStats,
+  KeptImage,
 } from './dto/filter-images.dto';
 import * as http from 'http';
 import * as https from 'https';
@@ -22,10 +23,12 @@ export class ImageFilterService {
         filteredHtml: content,
         stats: { total: 0, removed: 0, kept: 0, reasons: {} },
         removedImages: [],
+        keptImages: [],
       };
     }
 
     const removedImages: { src: string; reason: string }[] = [];
+    const keptImages: KeptImage[] = [];
 
     // 统计信息
     const stats: ImageStats = {
@@ -87,6 +90,7 @@ export class ImageFilterService {
           removedImages.push({ src, reason: 'size' });
         } else {
           stats.kept++;
+          keptImages.push({ src: imgTag.src, tag: imgTag.fullTag });
         }
       } catch (error) {
         // 处理错误（如网络错误、无效URL等）
@@ -105,6 +109,7 @@ export class ImageFilterService {
       filteredHtml: processedHtml,
       stats: stats,
       removedImages,
+      keptImages,
     };
   }
 
