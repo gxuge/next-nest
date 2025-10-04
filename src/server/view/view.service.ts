@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import createServer from 'next';
 import { Request, Response } from 'express';
 import { NextServer } from 'next/dist/server/next';
 
@@ -12,13 +11,17 @@ export class ViewService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     try {
-      this.server = createServer({
+      // 使用动态 import 来导入 Next.js，解决 ESM/CommonJS 兼容性问题
+      const nextModule: any = await import('next');
+      const createNextServer = nextModule.default || nextModule;
+
+      this.server = createNextServer({
         dev: this.configService.get<string>('NODE_ENV') !== 'production',
         dir: './src/client',
       });
       await this.server.prepare();
     } catch (error) {
-      console.error(error);
+      console.error('Failed to initialize Next.js:', error);
     }
   }
 

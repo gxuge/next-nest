@@ -31,13 +31,19 @@ describe('ImageFilterController', () => {
       };
 
       const mockResult = {
-        filteredHtml: '<div><img src="https://example.com/image1.jpg" /></div>',
+        filteredHtml: '<div><img1/></div>',
         stats: {
           total: 2,
           removed: 1,
           kept: 1,
           reasons: { gif: 1 },
         },
+        removedImages: [
+          { src: 'https://example.com/small.gif', reason: 'gif' }
+        ],
+        keptImages: [
+          { src: 'https://example.com/image1.jpg', tag: '<img1/>' }
+        ],
       };
 
       jest.spyOn(service, 'filterImages').mockResolvedValue(mockResult);
@@ -63,6 +69,8 @@ describe('ImageFilterController', () => {
           kept: 0,
           reasons: {},
         },
+        removedImages: [],
+        keptImages: [],
       };
 
       jest.spyOn(service, 'filterImages').mockResolvedValue(mockResult);

@@ -16,7 +16,7 @@ export class ImageFilterService {
   async filterImages(
     filterDto: FilterImagesDto,
   ): Promise<FilterImagesResponseDto> {
-    const { content, blacklistUrls = [], minSizeKB = 50 } = filterDto;
+    const { content, blacklistUrls = [], minSizeKB = 15 } = filterDto;
 
     if (!content) {
       return {
@@ -45,8 +45,14 @@ export class ImageFilterService {
     const imgTags = this.extractImgTags(processedHtml);
     stats.total = imgTags.length;
 
-    // 按索引降序排序，这样我们可以从后向前替换，避免索引变化问题
-    imgTags.sort((a, b) => b.index - a.index);
+    // 临时保存所有需要替换的操作，以便最后统一处理
+    const replacementOperations: Array<{
+      index: number;
+      length: number;
+      replacement: string;
+      imgTag: { fullTag: string; src: string; index: number };
+      isKept: boolean;
+    }> = [];
 
     // 处理每个图片标签
     for (const imgTag of imgTags) {
@@ -55,9 +61,13 @@ export class ImageFilterService {
 
         // 1. 检查是否在黑名单中
         if (this.isInBlacklist(src, blacklistUrls)) {
-          processedHtml =
-            processedHtml.substring(0, imgTag.index) +
-            processedHtml.substring(imgTag.index + imgTag.fullTag.length);
+          replacementOperations.push({
+            index: imgTag.index,
+            length: imgTag.fullTag.length,
+            replacement: '',
+            imgTag,
+            isKept: false,
+          });
           stats.removed++;
           if (!stats.reasons.blacklist) stats.reasons.blacklist = 0;
           stats.reasons.blacklist++;
@@ -67,9 +77,13 @@ export class ImageFilterService {
 
         // 2. 检查是否为GIF
         if (this.isGifUrl(src)) {
-          processedHtml =
-            processedHtml.substring(0, imgTag.index) +
-            processedHtml.substring(imgTag.index + imgTag.fullTag.length);
+          replacementOperations.push({
+            index: imgTag.index,
+            length: imgTag.fullTag.length,
+            replacement: '',
+            imgTag,
+            isKept: false,
+          });
           stats.removed++;
           if (!stats.reasons.gif) stats.reasons.gif = 0;
           stats.reasons.gif++;
@@ -81,28 +95,67 @@ export class ImageFilterService {
         const imageInfo = await this.getImageInfo(src);
 
         if (imageInfo.size <= minSizeKB * 1024) {
-          processedHtml =
-            processedHtml.substring(0, imgTag.index) +
-            processedHtml.substring(imgTag.index + imgTag.fullTag.length);
+          replacementOperations.push({
+            index: imgTag.index,
+            length: imgTag.fullTag.length,
+            replacement: '',
+            imgTag,
+            isKept: false,
+          });
           stats.removed++;
           if (!stats.reasons.size) stats.reasons.size = 0;
           stats.reasons.size++;
           removedImages.push({ src, reason: 'size' });
         } else {
+          // 保留的图片 - 先临时标记，稍后生成占位符
+          replacementOperations.push({
+            index: imgTag.index,
+            length: imgTag.fullTag.length,
+            replacement: '', // 稍后会被更新
+            imgTag,
+            isKept: true,
+          });
           stats.kept++;
-          keptImages.push({ src: imgTag.src, tag: imgTag.fullTag });
         }
       } catch (error) {
         // 处理错误（如网络错误、无效URL等）
-        processedHtml =
-          processedHtml.substring(0, imgTag.index) +
-          processedHtml.substring(imgTag.index + imgTag.fullTag.length);
+        replacementOperations.push({
+          index: imgTag.index,
+          length: imgTag.fullTag.length,
+          replacement: '',
+          imgTag,
+          isKept: false,
+        });
         stats.removed++;
         if (!stats.reasons.error) stats.reasons.error = 0;
         stats.reasons.error++;
         removedImages.push({ src: imgTag.src, reason: 'error' });
         console.log(`Error processing image ${imgTag.src}: ${error.message}`);
       }
+    }
+
+    // 为保留的图片生成占位符和索引
+    const keptOperations = replacementOperations.filter(op => op.isKept);
+    keptOperations.forEach((operation, index) => {
+      const placeholderTag = `<img${index + 1}/>`;
+      operation.replacement = placeholderTag;
+      
+      // 添加到keptImages数组
+      keptImages.push({
+        src: operation.imgTag.src,
+        tag: placeholderTag,
+      });
+    });
+
+    // 按索引降序排序，从后向前替换，避免索引变化问题
+    replacementOperations.sort((a, b) => b.index - a.index);
+
+    // 执行所有替换操作
+    for (const operation of replacementOperations) {
+      processedHtml =
+        processedHtml.substring(0, operation.index) +
+        operation.replacement +
+        processedHtml.substring(operation.index + operation.length);
     }
 
     return {

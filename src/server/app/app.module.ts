@@ -14,6 +14,8 @@ import { UsersModule } from './users/users.module';
 import { ThingsModule } from './things/things.module';
 import { OrdersModule } from './orders/orders.module';
 import { ImageFilterModule } from './image-filter/image-filter.module';
+import { TextExtractionModule } from './text-extraction/text-extraction.module';
+import { HtmlTemplateModule } from './html-template/html-template.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { ImageFilterModule } from './image-filter/image-filter.module';
     ThingsModule,
     OrdersModule,
     ImageFilterModule,
+    TextExtractionModule,
+    HtmlTemplateModule,
   ],
   providers: [SeedService, AppService],
   controllers: [AppController],
