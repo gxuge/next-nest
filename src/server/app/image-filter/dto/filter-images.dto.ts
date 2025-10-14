@@ -58,6 +58,36 @@ export class KeptImage {
     example: '<img1/>',
   })
   tag: string;
+
+  @ApiProperty({
+    description: '图片周围的上下文文本，用于辅助AI分析图片内容',
+    example: {
+      before: '这是一款优秀的智能手机，拥有强大的性能和优雅的设计。',
+      after: '该手机配备了最新的处理器和高清显示屏。',
+      full: '这是一款优秀的智能手机，拥有强大的性能和优雅的设计。该手机配备了最新的处理器和高清显示屏。',
+    },
+  })
+  context: {
+    before: string;
+    after: string;
+    full: string;
+  };
+
+  @ApiProperty({
+    description: '上下文提取的元数据信息',
+    example: {
+      beforeChars: 285,
+      afterChars: 500,
+      truncatedBefore: true,
+      truncatedAfter: false,
+    },
+  })
+  contextMeta: {
+    beforeChars: number;
+    afterChars: number;
+    truncatedBefore: boolean;
+    truncatedAfter: boolean;
+  };
 }
 
 export class FilterImagesResponseDto {

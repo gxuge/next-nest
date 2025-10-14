@@ -1,0 +1,99 @@
+{
+  "保存为草稿": {
+    "main": [[]]
+  },
+  "Schedule Trigger": {
+    "main": [[{"node": "获取当前时间&日期1", "type": "main", "index": 0}]]
+  },
+  "获取当前时间&日期1": {
+    "main": [[{"node": "调用fastgpt API(ai agent)", "type": "main", "index": 0}]]
+  },
+  "调用fastgpt API(ai agent)": {
+    "main": [[{"node": "格式化数据", "type": "main", "index": 0}]]
+  },
+  "格式化数据": {
+    "main": [[{"node": "提取图片和文本", "type": "main", "index": 0}]]
+  },
+  "提取图片和文本": {
+    "main": [[{"node": "多张图片轮流上传", "type": "main", "index": 0}]]
+  },
+  "多张图片轮流上传": {
+    "main": [[{"node": "Loop Over Items1", "type": "main", "index": 0}]]
+  },
+  "Loop Over Items1": {
+    "main": [
+      [{"node": "合并图片数组", "type": "main", "index": 0}],
+      [{"node": "下载图片1", "type": "main", "index": 0}]
+    ]
+  },
+  "下载图片1": {
+    "main": [[{"node": "生成临时文件名", "type": "main", "index": 0}]]
+  },
+  "生成临时文件名": {
+    "main": [[{"node": "上传临时文件到R", "type": "main", "index": 0}]]
+  },
+  "上传临时文件到R": {
+    "main": [[{"node": "从R2下载文件1", "type": "main", "index": 0}]]
+  },
+  "从R2下载文件1": {
+    "main": [[{"node": "调用转换接口", "type": "main", "index": 0}]]
+  },
+  "调用转换接口": {
+    "main": [[{"node": "设置文件元信息", "type": "main", "index": 0}]]
+  },
+  "设置文件元信息": {
+    "main": [[{"node": "保存到微信永久素材", "type": "main", "index": 0}]]
+  },
+  "保存到微信永久素材": {
+    "main": [[{"node": "准备最终文件参数", "type": "main", "index": 0}]]
+  },
+  "准备最终文件参数": {
+    "main": [[{"node": "上传最终文件到R", "type": "main", "index": 0}]]
+  },
+  "上传最终文件到R": {
+    "main": [[{"node": "删除R2临时文件1", "type": "main", "index": 0}]]
+  },
+  "删除R2临时文件1": {
+    "main": [[{"node": "返回结果", "type": "main", "index": 0}]]
+  },
+  "返回结果": {
+    "main": [[{"node": "Loop Over Items1", "type": "main", "index": 0}]]
+  },
+  "合并图片数组": {
+    "main": [[{"node": "获取全部图片url信息", "type": "main", "index": 0}]]
+  },
+  "获取全部图片url信息": {
+    "main": [[
+      {"node": "微信公众号处理并去ai化(ai agent)", "type": "main", "index": 0},
+      {"node": "获取oss图片列表", "type": "main", "index": 0}
+    ]]
+  },
+  "微信公众号处理并去ai化(ai agent)": {
+    "main": [[{"node": "微信图片替换旧图片", "type": "main", "index": 0}]]
+  },
+  "微信图片替换旧图片": {
+    "main": [[{"node": "格式化输出", "type": "main", "index": 0}]]
+  },
+  "格式化输出": {
+    "main": [[{"node": "套入模板1", "type": "main", "index": 0}]]
+  },
+  "套入模板1": {
+    "main": [[{"node": "获取微信最终文章数据", "type": "main", "index": 0}]]
+  },
+  "获取微信最终文章数据": {
+    "main": [[{"node": "保存为草稿", "type": "main", "index": 0}]]
+  },
+  "获取oss图片列表": {
+    "main": [[{"node": "小红书处理并去ai化(ai agent)", "type": "main", "index": 0}]]
+  },
+  "小红书处理并去ai化(ai agent)": {
+    "main": [[]]
+  },
+  "小红书处理并去ai化": {
+    "main": [[]]
+  },
+  "清除转义符": {
+    "main": [[]]
+  }
+}
+

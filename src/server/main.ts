@@ -1,11 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import * as cookieParser from 'cookie-parser';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as bodyParser from 'body-parser';
 
 import { ServerModule } from 'src/server/server.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(ServerModule);
+  
+  // 增加请求体大小限制，支持大图片的base64数据（最大50MB）
+  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+  
   app.use(cookieParser());
 
   // Swagger配置

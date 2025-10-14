@@ -1,18 +1,40 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json yarn.lock ./
+# 使用国内 Debian 镜像源（阿里云）加速 apt 包下载
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
-# Install dependencies
-RUN yarn install --frozen-lockfile
+# Install Sharp dependencies (precompiled, MUCH faster than Alpine)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    build-essential \
+    libvips-dev \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files (利用 Docker 缓存)
+COPY package.json yarn.lock .yarnrc ./
+
+# 强制禁止 Sharp 编译（必须使用预编译包）
+ENV npm_config_build_from_source=false
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=1
+ENV npm_config_sharp_binary_host="https://npmmirror.com/mirrors/sharp"
+ENV npm_config_sharp_libvips_binary_host="https://npmmirror.com/mirrors/sharp-libvips"
+
+# Install dependencies（如果没有预编译包会立即报错，不会编译）
+RUN yarn install --frozen-lockfile --network-timeout 600000
 
 # Copy source code
 COPY . .
 
 # Build the application
 RUN yarn build
+
+# Remove dev dependencies to reduce image size
+RUN yarn install --production --frozen-lockfile --network-timeout 600000 && \
+    yarn cache clean
 
 # Expose port
 EXPOSE 3000

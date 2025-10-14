@@ -16,6 +16,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ImageFilterModule } from './image-filter/image-filter.module';
 import { TextExtractionModule } from './text-extraction/text-extraction.module';
 import { HtmlTemplateModule } from './html-template/html-template.module';
+import { GatewayProxyModule } from './gateway-proxy/gateway-proxy.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { HtmlTemplateModule } from './html-template/html-template.module';
     ImageFilterModule,
     TextExtractionModule,
     HtmlTemplateModule,
+    GatewayProxyModule,
   ],
   providers: [SeedService, AppService],
   controllers: [AppController],

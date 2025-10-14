@@ -1,12 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import {
   FilterImagesDto,
   FilterImagesResponseDto,
   ImageStats,
   KeptImage,
 } from './dto/filter-images.dto';
+import {
+  ConvertImageDto,
+  ConvertImageResponseDto,
+} from './dto/convert-image.dto';
 import * as http from 'http';
 import * as https from 'https';
+import * as sharp from 'sharp';
 
 @Injectable()
 export class ImageFilterService {
@@ -135,15 +140,24 @@ export class ImageFilterService {
     }
 
     // 为保留的图片生成占位符和索引
-    const keptOperations = replacementOperations.filter(op => op.isKept);
+    const keptOperations = replacementOperations.filter((op) => op.isKept);
     keptOperations.forEach((operation, index) => {
       const placeholderTag = `<img${index + 1}/>`;
       operation.replacement = placeholderTag;
-      
+
+      // 提取图片的上下文文本
+      const contextInfo = this.extractImageContext(
+        operation.imgTag,
+        imgTags,
+        processedHtml,
+      );
+
       // 添加到keptImages数组
       keptImages.push({
         src: operation.imgTag.src,
         tag: placeholderTag,
+        context: contextInfo.context,
+        contextMeta: contextInfo.meta,
       });
     });
 
@@ -308,5 +322,197 @@ export class ImageFilterService {
     }
 
     return matches;
+  }
+
+  /**
+   * 提取图片的上下文文本
+   * 使用相邻图片边界检测，避免不同图片的上下文混淆
+   */
+  private extractImageContext(
+    currentImg: { fullTag: string; src: string; index: number },
+    allImgTags: Array<{ fullTag: string; src: string; index: number }>,
+    html: string,
+  ): {
+    context: { before: string; after: string; full: string };
+    meta: {
+      beforeChars: number;
+      afterChars: number;
+      truncatedBefore: boolean;
+      truncatedAfter: boolean;
+    };
+  } {
+    const CONTEXT_CHARS = 500; // 默认前后各提取500字符
+
+    // 找到前一张和后一张图片
+    const prevImg = allImgTags
+      .filter((img) => img.index < currentImg.index)
+      .sort((a, b) => b.index - a.index)[0]; // 最近的前一张
+
+    const nextImg = allImgTags
+      .filter((img) => img.index > currentImg.index)
+      .sort((a, b) => a.index - b.index)[0]; // 最近的后一张
+
+    // 计算安全的提取起始位置（图片之前）
+    const idealStartIndex = currentImg.index - CONTEXT_CHARS;
+    let actualStartIndex = Math.max(0, idealStartIndex);
+
+    // 如果前面有图片，不能越过那张图片的结束位置
+    if (prevImg) {
+      const prevImgEnd = prevImg.index + prevImg.fullTag.length;
+      actualStartIndex = Math.max(actualStartIndex, prevImgEnd);
+    }
+
+    // 计算安全的提取结束位置（图片之后）
+    const currentImgEnd = currentImg.index + currentImg.fullTag.length;
+    const idealEndIndex = currentImgEnd + CONTEXT_CHARS;
+    let actualEndIndex = Math.min(html.length, idealEndIndex);
+
+    // 如果后面有图片，不能越过那张图片的开始位置
+    if (nextImg) {
+      actualEndIndex = Math.min(actualEndIndex, nextImg.index);
+    }
+
+    // 提取before和after的HTML片段
+    const beforeHtml = html.substring(actualStartIndex, currentImg.index);
+    const afterHtml = html.substring(currentImgEnd, actualEndIndex);
+
+    // 清理HTML标签，提取纯文本
+    const beforeText = this.cleanHtmlToText(beforeHtml);
+    const afterText = this.cleanHtmlToText(afterHtml);
+
+    // 计算实际提取的字符数
+    const actualBeforeChars = currentImg.index - actualStartIndex;
+    const actualAfterChars = actualEndIndex - currentImgEnd;
+
+    // 判断是否被截断
+    const truncatedBefore = !!prevImg && actualStartIndex > idealStartIndex;
+    const truncatedAfter = !!nextImg && actualEndIndex < idealEndIndex;
+
+    return {
+      context: {
+        before: beforeText,
+        after: afterText,
+        full: beforeText + (beforeText && afterText ? ' ' : '') + afterText,
+      },
+      meta: {
+        beforeChars: actualBeforeChars,
+        afterChars: actualAfterChars,
+        truncatedBefore,
+        truncatedAfter,
+      },
+    };
+  }
+
+  /**
+   * 清理HTML标签，提取纯文本
+   */
+  private cleanHtmlToText(html: string): string {
+    if (!html) return '';
+
+    let text = html;
+
+    // 1. 移除 script 和 style 标签及其内容
+    text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+
+    // 2. 移除所有HTML标签
+    text = text.replace(/<[^>]+>/g, ' ');
+
+    // 3. 转换HTML实体
+    text = text
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&ldquo;/g, '"')
+      .replace(/&rdquo;/g, '"')
+      .replace(/&lsquo;/g, "'")
+      .replace(/&rsquo;/g, "'")
+      .replace(/&mdash;/g, '—')
+      .replace(/&ndash;/g, '–');
+
+    // 4. 清理多余的空白字符
+    text = text
+      .replace(/\s+/g, ' ') // 多个空白字符替换为单个空格
+      .replace(/\n\s*\n/g, '\n') // 多个换行替换为单个换行
+      .trim(); // 去除首尾空白
+
+    // 5. 限制最大长度（可选，防止过长）
+    const MAX_LENGTH = 1000;
+    if (text.length > MAX_LENGTH) {
+      text = text.substring(0, MAX_LENGTH) + '...';
+    }
+
+    return text;
+  }
+
+  /**
+   * 转换图片为JPEG格式
+   */
+  async convertToJpeg(
+    convertDto: ConvertImageDto,
+  ): Promise<ConvertImageResponseDto> {
+    const { imageData, quality = 95 } = convertDto;
+
+    // 验证 imageData 是否存在
+    if (!imageData) {
+      throw new BadRequestException('图片转换失败: imageData 参数不能为空');
+    }
+
+    // 处理 n8n 传递的对象格式（包含 data、mimeType 等字段）
+    let base64Data: string;
+    if (typeof imageData === 'object' && imageData !== null) {
+      // 如果是对象，尝试提取 data 字段
+      const imageObj = imageData as any;
+      if ('data' in imageObj && typeof imageObj.data === 'string') {
+        base64Data = imageObj.data;
+        console.log(
+          `接收到对象格式的图片数据，已提取 data 字段 (${base64Data.length} 字符)`,
+        );
+      } else {
+        throw new BadRequestException(
+          '图片转换失败: imageData 对象中缺少有效的 data 字段',
+        );
+      }
+    } else if (typeof imageData === 'string') {
+      // 如果是字符串，直接使用
+      base64Data = imageData;
+    } else {
+      throw new BadRequestException(
+        '图片转换失败: imageData 必须是字符串或包含 data 字段的对象',
+      );
+    }
+
+    // 验证 base64Data 是否为有效的字符串
+    if (!base64Data || !base64Data.trim()) {
+      throw new BadRequestException('图片转换失败: base64 数据不能为空');
+    }
+
+    try {
+      // 解码base64数据
+      const inputBuffer = Buffer.from(base64Data, 'base64');
+      const originalSize = inputBuffer.length;
+
+      // 获取原始图片元数据
+      const metadata = await sharp(inputBuffer).metadata();
+      const originalFormat = `image/${metadata.format || 'unknown'}`;
+
+      // 转换为JPEG
+      const jpegBuffer = await sharp(inputBuffer).jpeg({ quality }).toBuffer();
+
+      const convertedSize = jpegBuffer.length;
+
+      return {
+        imageData: jpegBuffer.toString('base64'),
+        originalFormat,
+        convertedFormat: 'image/jpeg',
+        originalSize,
+        convertedSize,
+      };
+    } catch (error) {
+      throw new BadRequestException(`图片转换失败: ${error.message}`);
+    }
   }
 }
