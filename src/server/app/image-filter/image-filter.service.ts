@@ -8,6 +8,8 @@ import {
 import {
   ConvertImageDto,
   ConvertImageResponseDto,
+  CompressImageDto,
+  CompressImageResponseDto,
 } from './dto/convert-image.dto';
 import * as http from 'http';
 import * as https from 'https';
@@ -80,7 +82,7 @@ export class ImageFilterService {
           continue;
         }
 
-        // 2. 检查是否为GIF
+        // 2. 检查是否为GIF或SVG
         if (this.isGifUrl(src)) {
           replacementOperations.push({
             index: imgTag.index,
@@ -96,7 +98,23 @@ export class ImageFilterService {
           continue;
         }
 
-        // 3. 获取图片信息并检查大小
+        // 3. 检查是否为SVG
+        if (this.isSvgUrl(src)) {
+          replacementOperations.push({
+            index: imgTag.index,
+            length: imgTag.fullTag.length,
+            replacement: '',
+            imgTag,
+            isKept: false,
+          });
+          stats.removed++;
+          if (!stats.reasons.svg) stats.reasons.svg = 0;
+          stats.reasons.svg++;
+          removedImages.push({ src, reason: 'svg' });
+          continue;
+        }
+
+        // 4. 获取图片信息并检查大小
         const imageInfo = await this.getImageInfo(src);
 
         if (imageInfo.size <= minSizeKB * 1024) {
@@ -230,6 +248,32 @@ export class ImageFilterService {
     // 检查URL路径中的关键词
     const gifKeywords = ['gif', 'animated', 'animation', '动态图'];
     if (gifKeywords.some((keyword) => cleanUrl.includes(keyword))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * 检查URL是否指向SVG
+   */
+  private isSvgUrl(url: string): boolean {
+    const cleanUrl = this.unescapeHtml(url).toLowerCase();
+
+    // 检查文件扩展名
+    if (cleanUrl.endsWith('.svg')) return true;
+
+    // 检查URL参数
+    if (
+      cleanUrl.includes('wx_fmt=svg') ||
+      cleanUrl.includes('format=svg') ||
+      cleanUrl.includes('type=svg')
+    ) {
+      return true;
+    }
+
+    // 检查data URI
+    if (cleanUrl.startsWith('data:image/svg+xml')) {
       return true;
     }
 
@@ -513,6 +557,117 @@ export class ImageFilterService {
       };
     } catch (error) {
       throw new BadRequestException(`图片转换失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 压缩图片用于AI识别
+   * 通过降低质量和调整尺寸来压缩图片体积，同时保持AI可识别的质量
+   */
+  async compressForAI(
+    compressDto: CompressImageDto,
+  ): Promise<CompressImageResponseDto> {
+    const {
+      imageData,
+      quality = 75,
+      maxWidth = 1024,
+      maxHeight = 1024,
+    } = compressDto;
+
+    // 验证 imageData 是否存在
+    if (!imageData) {
+      throw new BadRequestException('图片压缩失败: imageData 参数不能为空');
+    }
+
+    // 处理 n8n 传递的对象格式（包含 data、mimeType 等字段）
+    let base64Data: string;
+    if (typeof imageData === 'object' && imageData !== null) {
+      // 如果是对象，尝试提取 data 字段
+      const imageObj = imageData as any;
+      if ('data' in imageObj && typeof imageObj.data === 'string') {
+        base64Data = imageObj.data;
+        console.log(
+          `接收到对象格式的图片数据，已提取 data 字段 (${base64Data.length} 字符)`,
+        );
+      } else {
+        throw new BadRequestException(
+          '图片压缩失败: imageData 对象中缺少有效的 data 字段',
+        );
+      }
+    } else if (typeof imageData === 'string') {
+      // 如果是字符串，直接使用
+      base64Data = imageData;
+    } else {
+      throw new BadRequestException(
+        '图片压缩失败: imageData 必须是字符串或包含 data 字段的对象',
+      );
+    }
+
+    // 验证 base64Data 是否为有效的字符串
+    if (!base64Data || !base64Data.trim()) {
+      throw new BadRequestException('图片压缩失败: base64 数据不能为空');
+    }
+
+    try {
+      // 解码base64数据
+      const inputBuffer = Buffer.from(base64Data, 'base64');
+      const originalSize = inputBuffer.length;
+
+      // 获取原始图片元数据
+      const sharpInstance = sharp(inputBuffer);
+      const metadata = await sharpInstance.metadata();
+      const originalFormat = `image/${metadata.format || 'unknown'}`;
+      const originalWidth = metadata.width || 0;
+      const originalHeight = metadata.height || 0;
+
+      // 计算新的尺寸（保持宽高比）
+      let newWidth = originalWidth;
+      let newHeight = originalHeight;
+
+      if (originalWidth > maxWidth || originalHeight > maxHeight) {
+        const widthRatio = maxWidth / originalWidth;
+        const heightRatio = maxHeight / originalHeight;
+        const ratio = Math.min(widthRatio, heightRatio);
+
+        newWidth = Math.round(originalWidth * ratio);
+        newHeight = Math.round(originalHeight * ratio);
+      }
+
+      // 压缩图片：调整尺寸 + 转换为JPEG + 降低质量
+      const compressedBuffer = await sharp(inputBuffer)
+        .resize(newWidth, newHeight, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({
+          quality,
+          mozjpeg: true, // 使用 mozjpeg 引擎获得更好的压缩率
+        })
+        .toBuffer();
+
+      const compressedSize = compressedBuffer.length;
+      const compressionRatio =
+        ((originalSize - compressedSize) / originalSize) * 100;
+
+      console.log(
+        `图片压缩完成: ${originalWidth}x${originalHeight} (${(
+          originalSize / 1024
+        ).toFixed(2)}KB) -> ${newWidth}x${newHeight} (${(
+          compressedSize / 1024
+        ).toFixed(2)}KB), 压缩率: ${compressionRatio.toFixed(2)}%`,
+      );
+
+      return {
+        imageData: compressedBuffer.toString('base64'),
+        originalFormat,
+        originalDimensions: { width: originalWidth, height: originalHeight },
+        compressedDimensions: { width: newWidth, height: newHeight },
+        originalSize,
+        compressedSize,
+        compressionRatio: parseFloat(compressionRatio.toFixed(2)),
+      };
+    } catch (error) {
+      throw new BadRequestException(`图片压缩失败: ${error.message}`);
     }
   }
 }

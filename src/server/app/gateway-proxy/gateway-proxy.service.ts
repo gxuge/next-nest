@@ -35,7 +35,7 @@ export class GatewayProxyService {
           Connection: 'close',
           'Accept-Encoding': 'identity',
         },
-        timeout: 120000,
+        timeout: 3600000,
         agent,
         // 容忍上游返回的非标准响应头（例如同时包含 Content-Length 与 Transfer-Encoding）
         insecureHTTPParser: true,
